@@ -10,12 +10,6 @@ node_compat = true
 [triggers]
 crons = ["0 0 * * *"]
 
-# KV 命名空間用於存儲狀態
-[[kv_namespaces]]
-binding = "BAHAMUT_KV"
-id = "your-kv-namespace-id"
-preview_id = "your-kv-preview-id"
-
 # 機密資料使用 wrangler secret 設定
 # wrangler secret put BAHAMUT_UID
 # wrangler secret put BAHAMUT_PWD

@@ -16,6 +16,19 @@ export class BahamutService {
     };
   }
 
+  private async smartDelay(baseMs: number = 500): Promise<void> {
+    if (!this.config.useSmartDelay) return;
+    
+    // 使用更短的延遲時間，減少 CPU 消耗
+    // 基礎延遲 + 小範圍隨機（0-500ms）
+    const randomOffset = Math.floor(Math.random() * 500);
+    const delay = baseMs + randomOffset;
+    
+    // 最大延遲不超過 2 秒
+    const finalDelay = Math.min(delay, 2000);
+    await new Promise(resolve => setTimeout(resolve, finalDelay));
+  }
+
   private generateTOTP(secret: string): string {
     const totp = new TOTP({
       secret,
@@ -92,6 +105,8 @@ export class BahamutService {
   }
 
   async signMain(): Promise<string> {
+    await this.smartDelay(800);
+    
     const response = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
       method: 'POST',
       headers: {
@@ -118,6 +133,8 @@ export class BahamutService {
 
   async signGuild(): Promise<string> {
     try {
+      await this.smartDelay(600);
+      
       const listResponse = await fetch('https://api.gamer.com.tw/ajax/common/topBar.php?type=forum', {
         headers: {
           ...this.headers,
@@ -133,6 +150,8 @@ export class BahamutService {
       }
 
       const guildId = guildMatch[1];
+      
+      await this.smartDelay(400);
       
       const signResponse = await fetch('https://guild.gamer.com.tw/ajax/guildSign.php', {
         method: 'POST',
@@ -160,6 +179,8 @@ export class BahamutService {
 
   async answerAnime(): Promise<string> {
     try {
+      await this.smartDelay(700);
+      
       const response = await fetch('https://ani.gamer.com.tw/', {
         headers: {
           ...this.headers,
@@ -175,6 +196,8 @@ export class BahamutService {
       }
 
       const token = tokenMatch[1];
+      
+      await this.smartDelay(500);
       
       const questionResponse = await fetch(`https://ani.gamer.com.tw/ajax/videoCastcleGet.php?s=${token}`, {
         headers: {
@@ -201,6 +224,8 @@ export class BahamutService {
         }
       }
 
+      await this.smartDelay(600);
+      
       const answerResponse = await fetch('https://ani.gamer.com.tw/ajax/videoCastcleAnswer.php', {
         method: 'POST',
         headers: {

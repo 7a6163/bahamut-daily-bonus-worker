@@ -1,97 +1,93 @@
-# 巴哈姆特自動簽到 Cloudflare Worker
+# Bahamut Daily Bonus Cloudflare Worker
 
-使用 Cloudflare Worker + Hono + TypeScript 實現的巴哈姆特自動簽到服務。
+An automated daily check-in service for Bahamut built with Cloudflare Worker + Hono + TypeScript.
 
-## 功能特點
+## Features
 
-- 🔐 巴哈姆特主站自動簽到
-- 🏛️ 公會自動簽到
-- 🎬 動畫瘋自動答題
-- 📱 支援二步驗證 (2FA)
-- 🤖 Telegram Bot 通知
-- ⏰ 定時自動執行（每日 UTC 00:00，台灣時間 08:00）
-- 📊 簽到狀態查詢
+- 🔐 Automatic daily check-in for Bahamut main site
+- 🏛️ Automatic guild check-in
+- 🎬 Automatic Ani Gamer quiz answering
+- 📱 Two-factor authentication (2FA) support
+- 🤖 Telegram Bot notifications
+- ⏰ Scheduled execution (Daily at UTC 00:00 / Taiwan Time 08:00)
+- 🔄 Automatic retry on failures
 
-## 安裝步驟
+## Installation
 
-### 1. 安裝依賴
+### 1. Install Dependencies
 
 ```bash
 cd worker/bahamut-daily-bonus
 npm install
 ```
 
-### 2. 設定 KV Namespace
+### 2. Configure Environment Variables
 
 ```bash
-# 創建 KV namespace
-wrangler kv:namespace create "BAHAMUT_KV"
-wrangler kv:namespace create "BAHAMUT_KV" --preview
-
-# 將返回的 ID 填入 wrangler.toml
-```
-
-### 3. 設定環境變數
-
-```bash
-# 必填：巴哈姆特帳號
+# Required: Bahamut username
 wrangler secret put BAHAMUT_UID
 
-# 必填：巴哈姆特密碼
+# Required: Bahamut password
 wrangler secret put BAHAMUT_PWD
 
-# 選填：二步驗證 Token（16位數）
+# Optional: 2FA Token (16 digits)
 wrangler secret put BAHAMUT_TOTP
 
-# 選填：Telegram Bot Token
+# Optional: Telegram Bot Token
 wrangler secret put TELEGRAM_BOT_TOKEN
 
-# 選填：Telegram Chat ID
+# Optional: Telegram Chat ID
 wrangler secret put TELEGRAM_CHAT_ID
 ```
 
-### 4. 部署
+### 3. Deploy
 
 ```bash
 npm run deploy
 ```
 
-## API 端點
+## API Endpoints
 
 ### GET /
-返回服務資訊和可用端點
+Returns service information and available endpoints
 
 ### GET /health
-健康檢查
-
-### GET /status
-查看今日簽到狀態
+Health check endpoint
 
 ### POST /trigger
-手動觸發簽到
+Manually trigger the sign-in process
 
-## Telegram Bot 設定
+## Telegram Bot Setup
 
-1. 向 [@BotFather](https://t.me/botfather) 申請 Bot Token
-2. 獲取你的 Chat ID（可以向 [@userinfobot](https://t.me/userinfobot) 發送訊息獲取）
-3. 使用 `wrangler secret` 設定環境變數
+1. Get a Bot Token from [@BotFather](https://t.me/botfather)
+2. Get your Chat ID (send a message to [@userinfobot](https://t.me/userinfobot))
+3. Configure environment variables using `wrangler secret`
 
-## 開發
+## Development
 
 ```bash
-# 本地開發
+# Local development
 npm run dev
 
-# 查看日誌
+# View logs
 npm run tail
 ```
 
-## 注意事項
+## Performance Optimization
 
-- 請確保帳號密碼正確
-- 如有開啟二步驗證，需提供 16 位 Token
-- 動畫瘋答題使用 Google 搜尋輔助，不保證 100% 正確
-- 建議設定 Telegram 通知以便及時了解簽到狀態
+This Worker uses several strategies to minimize CPU time while maintaining natural behavior:
+
+1. **Smart Delays**: Implements short, randomized delays (500-2000ms) to simulate human behavior without excessive CPU usage
+2. **Simplified Architecture**: No KV storage needed - relies on Bahamut API responses
+3. **Automatic Deduplication**: Bahamut API handles duplicate sign-in attempts gracefully
+
+## Notes
+
+- Ensure your account credentials are correct
+- If 2FA is enabled, provide the 16-digit token
+- Ani Gamer quiz uses Google search assistance, not guaranteed 100% accurate
+- Recommended to set up Telegram notifications for real-time status updates
+- Smart delays add 3-8 seconds total execution time but use minimal CPU time
 
 ## License
 

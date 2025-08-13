@@ -4,7 +4,6 @@ export interface Env {
   BAHAMUT_TOTP?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
-  BAHAMUT_KV: KVNamespace;
 }
 
 export interface BahamutConfig {
@@ -14,6 +13,7 @@ export interface BahamutConfig {
   needSignAds?: boolean;
   needSignGuild?: boolean;
   needAnswer?: boolean;
+  useSmartDelay?: boolean;
 }
 
 export interface LoginResponse {
