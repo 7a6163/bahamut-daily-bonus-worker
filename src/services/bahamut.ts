@@ -143,12 +143,14 @@ export class BahamutService {
       });
 
       const listHtml = await listResponse.text();
-      const guildMatch = listHtml.match(/guild\.gamer\.com\.tw\/(\w+)/);
+      
+      // 從 guild.php?gsn= 參數中提取公會 ID
+      const guildMatch = listHtml.match(/guild\.php\?gsn=(\d+)/);
       
       if (!guildMatch) {
         return '⚠️ 未加入任何公會';
       }
-
+      
       const guildId = guildMatch[1];
       
       await this.smartDelay(400);
@@ -168,10 +170,13 @@ export class BahamutService {
       if (result.ok === 1) {
         return `✅ 公會簽到成功`;
       }
-      if (result.msg?.includes('已簽到')) {
+      if (result.msg?.includes('已經簽到過了') || result.msg?.includes('已簽到')) {
         return '⚠️ 公會今日已簽到';
       }
-      return `❌ 公會簽到失敗: ${result.msg || '未知錯誤'}`;
+      if (result.error === 1 && result.msg) {
+        return `❌ 公會簽到失敗: ${result.msg}`;
+      }
+      return `❌ 公會簽到失敗: 未知錯誤`;
     } catch (error) {
       return `❌ 公會簽到失敗: ${error instanceof Error ? error.message : '未知錯誤'}`;
     }
