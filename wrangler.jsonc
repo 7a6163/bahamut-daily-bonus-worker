@@ -1,0 +1,37 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "bahamut-daily-bonus",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-08-13",
+	"compatibility_flags": ["nodejs_compat"],
+
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 */
+	"vars": {
+		// Environment variables configuration
+	},
+
+	/**
+	 * Scheduled Events (Cron Triggers)
+	 * https://developers.cloudflare.com/workers/configuration/cron-triggers/
+	 */
+	"triggers": {
+		"crons": ["0 0 * * *"] // Scheduled task - runs daily at 8:00 AM (UTC+8)
+	}
+
+	/**
+	 * Secrets Configuration
+	 * Use wrangler secret commands to set these values:
+	 * wrangler secret put BAHAMUT_UID
+	 * wrangler secret put BAHAMUT_PWD
+	 * wrangler secret put BAHAMUT_TOTP (optional)
+	 * wrangler secret put TELEGRAM_BOT_TOKEN (optional, Telegram Bot Token)
+	 * wrangler secret put TELEGRAM_CHAT_ID (optional, Telegram Chat ID)
+	 */
+}
