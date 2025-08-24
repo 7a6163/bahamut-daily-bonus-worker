@@ -14,7 +14,6 @@ export class NotificationService {
 
   async send(title: string, message: string): Promise<void> {
     if (!this.telegramConfig) {
-      console.log('No notification service configured');
       return;
     }
 
