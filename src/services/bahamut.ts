@@ -5,6 +5,7 @@ export class BahamutService {
   private config: BahamutConfig;
   private cookies: Map<string, string> = new Map();
   private headers: HeadersInit;
+  private baharune: string = '';
 
   constructor(config: BahamutConfig) {
     this.config = config;
@@ -18,12 +19,12 @@ export class BahamutService {
 
   private async smartDelay(baseMs: number = 500): Promise<void> {
     if (!this.config.useSmartDelay) return;
-    
+
     // 使用更短的延遲時間，減少 CPU 消耗
     // 基礎延遲 + 小範圍隨機（0-500ms）
     const randomOffset = Math.floor(Math.random() * 500);
     const delay = baseMs + randomOffset;
-    
+
     // 最大延遲不超過 2 秒
     const finalDelay = Math.min(delay, 2000);
     await new Promise(resolve => setTimeout(resolve, finalDelay));
@@ -45,6 +46,11 @@ export class BahamutService {
       const [name, value] = nameValue.split('=');
       if (name && value) {
         this.cookies.set(name.trim(), value.trim());
+
+        // 特別處理 BAHARUNE Cookie（與 Surge 版本一致）
+        if (name.trim() === 'BAHARUNE') {
+          this.baharune = `BAHARUNE=${value.trim()}`;
+        }
       }
     }
   }
@@ -106,18 +112,40 @@ export class BahamutService {
 
   async signMain(): Promise<string> {
     await this.smartDelay(800);
-    
-    const response = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
+
+    // 先取得 CSRF Token（與 Surge 版本一致）
+    const tokenResponse = await fetch('https://www.gamer.com.tw/ajax/get_csrf_token.php', {
+      method: 'GET',
+      headers: {
+        ...this.headers,
+        'Cookie': this.getCookieString(),
+        'Referer': 'https://www.gamer.com.tw/'
+      }
+    });
+
+    if (!tokenResponse.ok) {
+      return '❌ 無法取得簽到令牌';
+    }
+
+    const token = await tokenResponse.text();
+    if (!token) {
+      return '❌ 簽到令牌為空';
+    }
+
+    await this.smartDelay(500);
+
+    // 使用 CSRF Token 進行簽到（與 Surge 版本一致）
+    const signResponse = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
       method: 'POST',
       headers: {
         ...this.headers,
         'Cookie': this.getCookieString(),
         'Referer': 'https://www.gamer.com.tw/'
       },
-      body: 'action=2'
+      body: `action=1&token=${token}`
     });
 
-    const data: SignResponse = await response.json();
+    const data: SignResponse = await signResponse.json();
 
     if (data.data?.days) {
       return `✅ 巴哈姆特簽到成功，已連續簽到 ${data.data.days} 天`;
@@ -134,7 +162,7 @@ export class BahamutService {
   async signGuild(): Promise<string> {
     try {
       await this.smartDelay(600);
-      
+
       const listResponse = await fetch('https://api.gamer.com.tw/ajax/common/topBar.php?type=forum', {
         headers: {
           ...this.headers,
@@ -143,18 +171,18 @@ export class BahamutService {
       });
 
       const listHtml = await listResponse.text();
-      
-      // 從 guild.php?gsn= 參數中提取公會 ID
-      const guildMatch = listHtml.match(/guild\.php\?gsn=(\d+)/);
-      
+
+      // 從 guild.php?gsn= 或 guild.php?sn= 參數中提取公會 ID（與 Surge 版本一致）
+      const guildMatch = listHtml.match(/guild\.php\?g?sn=(\d+)/);
+
       if (!guildMatch) {
         return '⚠️ 未加入任何公會';
       }
-      
+
       const guildId = guildMatch[1];
-      
+
       await this.smartDelay(400);
-      
+
       const signResponse = await fetch('https://guild.gamer.com.tw/ajax/guildSign.php', {
         method: 'POST',
         headers: {
@@ -166,7 +194,7 @@ export class BahamutService {
       });
 
       const result = await signResponse.json();
-      
+
       if (result.ok === 1) {
         return `✅ 公會簽到成功`;
       }
@@ -185,7 +213,7 @@ export class BahamutService {
   async answerAnime(): Promise<string> {
     try {
       await this.smartDelay(700);
-      
+
       const response = await fetch('https://ani.gamer.com.tw/', {
         headers: {
           ...this.headers,
@@ -195,15 +223,15 @@ export class BahamutService {
 
       const html = await response.text();
       const tokenMatch = html.match(/token:\s*'([^']+)'/);
-      
+
       if (!tokenMatch) {
         return '⚠️ 動畫瘋今日已答題或無題目';
       }
 
       const token = tokenMatch[1];
-      
+
       await this.smartDelay(500);
-      
+
       const questionResponse = await fetch(`https://ani.gamer.com.tw/ajax/videoCastcleGet.php?s=${token}`, {
         headers: {
           ...this.headers,
@@ -212,7 +240,7 @@ export class BahamutService {
       });
 
       const questionData = await questionResponse.json();
-      
+
       if (!questionData.question) {
         return '⚠️ 無法獲取題目';
       }
@@ -220,7 +248,7 @@ export class BahamutService {
       const searchQuery = encodeURIComponent(questionData.question);
       const searchResponse = await fetch(`https://www.google.com/search?q=${searchQuery}`);
       const searchHtml = await searchResponse.text();
-      
+
       let answer = questionData.a1;
       for (const option of [questionData.a1, questionData.a2, questionData.a3, questionData.a4]) {
         if (searchHtml.includes(option)) {
@@ -230,7 +258,7 @@ export class BahamutService {
       }
 
       await this.smartDelay(600);
-      
+
       const answerResponse = await fetch('https://ani.gamer.com.tw/ajax/videoCastcleAnswer.php', {
         method: 'POST',
         headers: {
@@ -241,7 +269,7 @@ export class BahamutService {
       });
 
       const result = await answerResponse.json();
-      
+
       if (result.ok === 1) {
         return `✅ 動畫瘋答題成功，獲得 ${result.gift} 巴幣`;
       }

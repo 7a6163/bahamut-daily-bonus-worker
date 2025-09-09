@@ -31,4 +31,3 @@ worker/
 # Ignore optional TypeScript build outputs
 *.tsbuildinfo
 *.d.ts
-

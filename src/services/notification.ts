@@ -29,9 +29,9 @@ export class NotificationService {
 
     const { botToken, chatId } = this.telegramConfig;
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    
+
     const text = `🎮 *${this.escapeMarkdown(title)}*\n\n${this.escapeMarkdown(message)}`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {

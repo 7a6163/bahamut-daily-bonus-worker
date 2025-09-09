@@ -32,11 +32,11 @@ app.get('/health', (c) => {
 
 app.post('/trigger', async (c) => {
   const { BAHAMUT_UID, BAHAMUT_PWD, BAHAMUT_TOTP, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = c.env;
-  
+
   if (!BAHAMUT_UID || !BAHAMUT_PWD) {
     return c.json({ error: '缺少必要的帳號密碼設定' }, 400);
   }
-  
+
   const config = {
     uid: BAHAMUT_UID,
     pwd: BAHAMUT_PWD,
@@ -46,48 +46,48 @@ app.post('/trigger', async (c) => {
     needAnswer: true,
     useSmartDelay: true
   };
-  
+
   const bahamut = new BahamutService(config);
   const notification = new NotificationService(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID);
   const results: string[] = [];
-  
+
   try {
     // 登入
     await bahamut.login();
     results.push('✅ 登入成功');
-    
+
     // 公會簽到 - API 會自動回應是否已簽到
     if (config.needSignGuild) {
       const guildResult = await bahamut.signGuild();
       results.push(guildResult);
     }
-    
+
     // 主站簽到 - API 會自動回應是否已簽到
     const mainResult = await bahamut.signMain();
     results.push(mainResult);
-    
+
     // 動畫瘋答題 - API 會自動回應是否已答題
     if (config.needAnswer) {
       const answerResult = await bahamut.answerAnime();
       results.push(answerResult);
     }
-    
+
     // 發送 Telegram 通知
     await notification.send('巴哈姆特簽到完成', results.join('\n'));
-    
+
     return c.json({
       success: true,
       results,
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '未知錯誤';
     results.push(`❌ 錯誤: ${errorMessage}`);
-    
+
     // 發送錯誤通知到 Telegram
     await notification.send('巴哈姆特簽到失敗', results.join('\n'));
-    
+
     return c.json({
       success: false,
       results,
@@ -101,12 +101,12 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     return app.fetch(request, env, ctx);
   },
-  
+
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     // 定時觸發時直接執行簽到
     const url = new URL('/trigger', 'https://bahamut-daily-bonus.workers.dev');
     const request = new Request(url, { method: 'POST' });
-    
+
     await app.fetch(request, env, ctx);
   }
 };
