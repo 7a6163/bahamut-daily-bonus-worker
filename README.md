@@ -71,21 +71,31 @@ npm run dev
 
 # View logs
 npm run tail
+
+# Test manually
+curl -X POST http://localhost:8787/trigger
 ```
 
-## Performance Optimization
+## Technical Details
 
+### Authentication
+- Uses Mobile API for login with automatic web session establishment
+- Supports both mobile and web authentication tokens
+- Automatically handles cross-domain cookie sharing for Ani Gamer
+
+### Performance Optimization
 This Worker uses several strategies to minimize CPU time while maintaining natural behavior:
 
 1. **Smart Delays**: Implements short, randomized delays (500-2000ms) to simulate human behavior without excessive CPU usage
 2. **Simplified Architecture**: No KV storage needed - relies on Bahamut API responses
 3. **Automatic Deduplication**: Bahamut API handles duplicate sign-in attempts gracefully
+4. **Session Management**: Automatically establishes web sessions when needed for cross-service compatibility
 
 ## Notes
 
 - Ensure your account credentials are correct
 - If 2FA is enabled, provide the 16-digit token
-- Ani Gamer quiz uses Google search assistance, not guaranteed 100% accurate
+- Ani Gamer quiz fetches answers from blackXblue's daily posts, with fallback to community answer collection
 - Recommended to set up Telegram notifications for real-time status updates
 - Smart delays add 3-8 seconds total execution time but use minimal CPU time
 
