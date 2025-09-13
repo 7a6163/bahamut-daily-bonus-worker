@@ -5,7 +5,6 @@ export class BahamutService {
   private config: BahamutConfig;
   private cookies: Map<string, string> = new Map();
   private headers: HeadersInit;
-  private baharune: string = '';
 
   constructor(config: BahamutConfig) {
     this.config = config;
@@ -46,11 +45,6 @@ export class BahamutService {
       const [name, value] = nameValue.split('=');
       if (name && value) {
         this.cookies.set(name.trim(), value.trim());
-
-        // 特別處理 BAHARUNE Cookie（與 Surge 版本一致）
-        if (name.trim() === 'BAHARUNE') {
-          this.baharune = `BAHARUNE=${value.trim()}`;
-        }
       }
     }
   }
@@ -113,7 +107,7 @@ export class BahamutService {
   async signMain(): Promise<string> {
     await this.smartDelay(800);
 
-    // 先取得 CSRF Token（與 Surge 版本一致）
+    // 先取得 CSRF Token
     const tokenResponse = await fetch('https://www.gamer.com.tw/ajax/get_csrf_token.php', {
       method: 'GET',
       headers: {
@@ -134,7 +128,7 @@ export class BahamutService {
 
     await this.smartDelay(500);
 
-    // 使用 CSRF Token 進行簽到（與 Surge 版本一致）
+    // 使用 CSRF Token 進行簽到
     const signResponse = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
       method: 'POST',
       headers: {
@@ -172,7 +166,7 @@ export class BahamutService {
 
       const listHtml = await listResponse.text();
 
-      // 從 guild.php?gsn= 或 guild.php?sn= 參數中提取公會 ID（與 Surge 版本一致）
+      // 從 guild.php?gsn= 或 guild.php?sn= 參數中提取公會 ID
       const guildMatch = listHtml.match(/guild\.php\?g?sn=(\d+)/);
 
       if (!guildMatch) {
@@ -214,64 +208,149 @@ export class BahamutService {
     try {
       await this.smartDelay(700);
 
-      const response = await fetch('https://ani.gamer.com.tw/', {
-        headers: {
-          ...this.headers,
-          'Cookie': this.getCookieString()
-        }
-      });
-
-      const html = await response.text();
-      const tokenMatch = html.match(/token:\s*'([^']+)'/);
-
-      if (!tokenMatch) {
-        return '⚠️ 動畫瘋今日已答題或無題目';
-      }
-
-      const token = tokenMatch[1];
-
-      await this.smartDelay(500);
-
-      const questionResponse = await fetch(`https://ani.gamer.com.tw/ajax/videoCastcleGet.php?s=${token}`, {
-        headers: {
-          ...this.headers,
-          'Cookie': this.getCookieString()
-        }
-      });
-
-      const questionData = await questionResponse.json();
-
-      if (!questionData.question) {
-        return '⚠️ 無法獲取題目';
-      }
-
-      const searchQuery = encodeURIComponent(questionData.question);
-      const searchResponse = await fetch(`https://www.google.com/search?q=${searchQuery}`);
-      const searchHtml = await searchResponse.text();
-
-      let answer = questionData.a1;
-      for (const option of [questionData.a1, questionData.a2, questionData.a3, questionData.a4]) {
-        if (searchHtml.includes(option)) {
-          answer = option;
-          break;
-        }
-      }
-
-      await this.smartDelay(600);
-
-      const answerResponse = await fetch('https://ani.gamer.com.tw/ajax/videoCastcleAnswer.php', {
-        method: 'POST',
+      // 嘗試取得網頁版的 BAHAENUR cookie
+      const webAuthResponse = await fetch('https://www.gamer.com.tw/', {
         headers: {
           ...this.headers,
           'Cookie': this.getCookieString()
         },
-        body: `token=${token}&ans=${encodeURIComponent(answer)}&t=${Date.now()}`
+        redirect: 'manual'
       });
 
-      const result = await answerResponse.json();
+      // 檢查是否有新的 cookies（取得網頁版的 BAHAENUR）
+      const webCookies = webAuthResponse.headers.getSetCookie();
+      if (webCookies && webCookies.length > 0) {
+        this.parseCookies(webCookies);
+      }
+
+      // 使用正確的動畫瘋答題 API（必須使用動畫瘋的 User-Agent）
+      const questionResponse = await fetch(`https://ani.gamer.com.tw/ajax/animeGetQuestion.php?t=${Date.now()}`, {
+        headers: {
+          'User-Agent': 'Anime/2.13.9 (tw.com.gamer.anime;build:437;iOS 14.5.0) Alamofire/5.4.1',
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+          'Cookie': this.getCookieString(),
+          'Referer': 'https://ani.gamer.com.tw/',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      // 嘗試解析響應
+      let questionData;
+      try {
+        const text = await questionResponse.text();
+        questionData = JSON.parse(text);
+      } catch (e) {
+        // 如果不是 JSON，可能是 HTML 錯誤頁面
+        return '❌ 動畫瘋 API 需要有效的認證';
+      }
+
+      if (!questionData.token) {
+        // 檢查各種錯誤情況
+        if (questionData.error === 1 && questionData.nologin === 1) {
+          return '❌ 動畫瘋需要登入（請確認認證有效）';
+        }
+        if (questionData.msg?.includes('已經答過題目')) {
+          return '⚠️ 動畫瘋今日已答題';
+        }
+        if (questionData.msg?.includes('請先登入')) {
+          return '❌ 動畫瘋需要登入';
+        }
+        return `⚠️ 動畫瘋: ${questionData.msg || '今日無題目'}`;
+      }
+
+      // 從 blackxblue 小屋取得答案（使用 UserScript 相同的 API）
+      await this.smartDelay(500);
+
+      const articleResponse = await fetch('https://api.gamer.com.tw/home/v2/creation_list.php?owner=blackXblue', {
+        headers: {
+          ...this.headers,
+          'Cookie': this.getCookieString(),
+          'Referer': 'https://home.gamer.com.tw/'
+        }
+      });
+
+      // 檢查文章 API response
+      const articleContentType = articleResponse.headers.get('content-type');
+      if (!articleContentType || !articleContentType.includes('application/json')) {
+        return '❌ 無法取得答案文章，API 返回非 JSON 格式';
+      }
+
+      const articleData = await articleResponse.json();
+      const today = new Date();
+      // UserScript 使用 M/D 格式（不補零）
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
+
+      // 嘗試多種日期格式
+      const dateFormats = [
+        `${month}/${day}`,  // 3/9
+        `${month}-${day}`,  // 3-9
+        `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`,  // 03/09
+        `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`   // 03-09
+      ];
+
+      const answerArticle = (articleData.data?.list || []).find((article: any) =>
+        dateFormats.some(format => article.title.includes(format))
+      );
+
+      if (!answerArticle) {
+        return '❌ 找不到今日答案文章';
+      }
+
+      await this.smartDelay(500);
+
+      // 取得答案內容（使用 webview API 取得 HTML）
+      const answerResponse = await fetch(`https://api.gamer.com.tw/mobile_app/bahamut/v1/home_creation_detail_webview.php?sn=${answerArticle.csn}`, {
+        headers: {
+          ...this.headers,
+          'Cookie': this.getCookieString(),
+          'Referer': 'https://home.gamer.com.tw/'
+        }
+      });
+
+      // 檢查答案 API response（HTML 格式）
+      const answerContentType = answerResponse.headers.get('content-type');
+      if (!answerContentType || !answerContentType.includes('text/html')) {
+        return '❌ 無法取得答案內容，API 返回非預期格式';
+      }
+
+      const answerHTML = await answerResponse.text();
+
+      // 解析 HTML 找答案（匹配 UserScript 的邏輯）
+      const answerMatch = answerHTML.match(/[aAＡ]\s*.\s*([1-4１-４])/);
+
+      if (!answerMatch) {
+        return '❌ 無法解析答案';
+      }
+
+      const answer = answerMatch[1];
+
+      await this.smartDelay(600);
+
+      // 提交答案（使用正確的 API）
+      const submitResponse = await fetch('https://ani.gamer.com.tw/ajax/animeAnsQuestion.php', {
+        method: 'POST',
+        headers: {
+          'User-Agent': 'Anime/2.13.9 (tw.com.gamer.anime;build:437;iOS 14.5.0) Alamofire/5.4.1',
+          'Cookie': this.getCookieString(),
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Referer': 'https://ani.gamer.com.tw/',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `token=${questionData.token}&ans=${answer}&t=${Date.now()}`
+      });
+
+      // 檢查提交答案 response
+      const submitContentType = submitResponse.headers.get('content-type');
+      if (!submitContentType || !submitContentType.includes('application/json')) {
+        return '❌ 提交答案失敗，API 返回非 JSON 格式';
+      }
+
+      const result = await submitResponse.json();
 
       if (result.ok === 1) {
-        return `✅ 動畫瘋答題成功，獲得 ${result.gift} 巴幣`;
+        return `✅ 動畫瘋答題成功，${result.gift}`;
       }
       return `❌ 動畫瘋答題失敗: ${result.msg || '未知錯誤'}`;
     } catch (error) {
