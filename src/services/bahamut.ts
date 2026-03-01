@@ -4,6 +4,7 @@ import type { BahamutConfig, LoginResponse, SignResponse } from '../types';
 export class BahamutService {
   private config: BahamutConfig;
   private cookies: Map<string, string> = new Map();
+  private csrfToken: string = '';
   private headers: HeadersInit;
 
   constructor(config: BahamutConfig) {
@@ -19,14 +20,9 @@ export class BahamutService {
   private async smartDelay(baseMs: number = 500): Promise<void> {
     if (!this.config.useSmartDelay) return;
 
-    // 使用更短的延遲時間，減少 CPU 消耗
-    // 基礎延遲 + 小範圍隨機（0-500ms）
     const randomOffset = Math.floor(Math.random() * 500);
-    const delay = baseMs + randomOffset;
-
-    // 最大延遲不超過 2 秒
-    const finalDelay = Math.min(delay, 2000);
-    await new Promise(resolve => setTimeout(resolve, finalDelay));
+    const delay = Math.min(baseMs + randomOffset, 2000);
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   private generateTOTP(secret: string): string {
@@ -50,9 +46,9 @@ export class BahamutService {
   }
 
   private getCookieString(): string {
-    const cookieArray = Array.from(this.cookies.entries())
-      .map(([name, value]) => `${name}=${value}`);
-    return cookieArray.join('; ');
+    return Array.from(this.cookies.entries())
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ');
   }
 
   async login(retry = 3): Promise<void> {
@@ -107,7 +103,6 @@ export class BahamutService {
   async signMain(): Promise<string> {
     await this.smartDelay(800);
 
-    // 先取得 CSRF Token
     const tokenResponse = await fetch('https://www.gamer.com.tw/ajax/get_csrf_token.php', {
       method: 'GET',
       headers: {
@@ -126,9 +121,10 @@ export class BahamutService {
       return '❌ 簽到令牌為空';
     }
 
+    this.csrfToken = token;
+
     await this.smartDelay(500);
 
-    // 使用 CSRF Token 進行簽到
     const signResponse = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
       method: 'POST',
       headers: {
@@ -145,12 +141,73 @@ export class BahamutService {
       return `✅ 巴哈姆特簽到成功，已連續簽到 ${data.data.days} 天`;
     }
     if (data.error?.message) {
-      if (data.error.message.includes('已簽到')) {
+      if (data.error.message.includes('已經簽到') || data.error.message.includes('已簽到')) {
         return '⚠️ 巴哈姆特今日已簽到';
       }
       return `❌ 巴哈姆特簽到失敗: ${data.error.message}`;
     }
     return '❌ 巴哈姆特簽到失敗: 未知錯誤';
+  }
+
+  async signAds(): Promise<string> {
+    try {
+      if (!this.csrfToken) {
+        return '❌ 廣告獎勵需要先完成主站簽到';
+      }
+
+      const shortToken = this.csrfToken.slice(0, 16);
+      const adsCookie = `ckBahamutCsrfToken=${shortToken};${this.getCookieString()}`;
+
+      await this.smartDelay(500);
+
+      const startResponse = await fetch(
+        `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php?bahamutCsrfToken=${shortToken}`,
+        {
+          method: 'POST',
+          headers: {
+            ...this.headers,
+            'Cookie': adsCookie
+          }
+        }
+      );
+
+      const startData = await startResponse.json();
+
+      if (startData.data?.finished === 1) {
+        return '⚠️ 廣告雙倍獎勵今日已領取';
+      }
+
+      if (startData.data?.finished !== 0) {
+        const errMsg = startData.error?.message || startData.message;
+        return `❌ 廣告獎勵啟動失敗: ${errMsg || '未知錯誤'}`;
+      }
+
+      // Wait 30 seconds for ad to play
+      await new Promise(resolve => setTimeout(resolve, 30000));
+
+      const finishResponse = await fetch(
+        `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php?bahamutCsrfToken=${shortToken}`,
+        {
+          method: 'POST',
+          headers: {
+            ...this.headers,
+            'Cookie': adsCookie
+          }
+        }
+      );
+
+      const finishData = await finishResponse.json();
+
+      if (finishData.data?.finished === 1) {
+        return '✅ 廣告雙倍獎勵領取成功';
+      }
+
+      const errMsg = finishData.error?.message || finishData.message;
+      return `❌ 廣告獎勵領取失敗: ${errMsg || '未知錯誤'}`;
+
+    } catch (error) {
+      return `❌ 廣告獎勵失敗: ${error instanceof Error ? error.message : '未知錯誤'}`;
+    }
   }
 
   async signGuild(): Promise<string> {
@@ -166,7 +223,6 @@ export class BahamutService {
 
       const listHtml = await listResponse.text();
 
-      // 從 guild.php?gsn= 或 guild.php?sn= 參數中提取公會 ID
       const guildMatch = listHtml.match(/guild\.php\?g?sn=(\d+)/);
 
       if (!guildMatch) {
@@ -208,22 +264,6 @@ export class BahamutService {
     try {
       await this.smartDelay(700);
 
-      // 嘗試取得網頁版的 BAHAENUR cookie
-      const webAuthResponse = await fetch('https://www.gamer.com.tw/', {
-        headers: {
-          ...this.headers,
-          'Cookie': this.getCookieString()
-        },
-        redirect: 'manual'
-      });
-
-      // 檢查是否有新的 cookies（取得網頁版的 BAHAENUR）
-      const webCookies = webAuthResponse.headers.getSetCookie();
-      if (webCookies && webCookies.length > 0) {
-        this.parseCookies(webCookies);
-      }
-
-      // 使用正確的動畫瘋答題 API（必須使用動畫瘋的 User-Agent）
       const questionResponse = await fetch(`https://ani.gamer.com.tw/ajax/animeGetQuestion.php?t=${Date.now()}`, {
         headers: {
           'User-Agent': 'Anime/2.13.9 (tw.com.gamer.anime;build:437;iOS 14.5.0) Alamofire/5.4.1',
@@ -235,34 +275,42 @@ export class BahamutService {
         }
       });
 
-      // 嘗試解析響應
+      const questionText = await questionResponse.text();
       let questionData;
       try {
-        const text = await questionResponse.text();
-        questionData = JSON.parse(text);
-      } catch (e) {
-        // 如果不是 JSON，可能是 HTML 錯誤頁面
-        return '❌ 動畫瘋 API 需要有效的認證';
+        questionData = JSON.parse(questionText);
+      } catch {
+        const preview = questionText.slice(0, 120).replace(/\n/g, ' ');
+        return `❌ 動畫瘋 API 非 JSON (${questionResponse.status}): ${preview}`;
       }
 
       if (!questionData.token) {
-        // 檢查各種錯誤情況
         if (questionData.error === 1 && questionData.nologin === 1) {
           return '❌ 動畫瘋需要登入（請確認認證有效）';
         }
         if (questionData.msg?.includes('已經答過題目')) {
           return '⚠️ 動畫瘋今日已答題';
         }
-        if (questionData.msg?.includes('請先登入')) {
-          return '❌ 動畫瘋需要登入';
-        }
         return `⚠️ 動畫瘋: ${questionData.msg || '今日無題目'}`;
       }
 
-      // 從 blackxblue 小屋取得答案（使用 UserScript 相同的 API）
+      // Fetch web session cookies needed for ani.gamer.com.tw
+      const webAuthResponse = await fetch('https://www.gamer.com.tw/', {
+        headers: {
+          ...this.headers,
+          'Cookie': this.getCookieString()
+        },
+        redirect: 'manual'
+      });
+      const webCookies = webAuthResponse.headers.getSetCookie();
+      if (webCookies.length > 0) {
+        this.parseCookies(webCookies);
+      }
+
+      // Get answer article list (same API as reference script)
       await this.smartDelay(500);
 
-      const articleResponse = await fetch('https://api.gamer.com.tw/home/v2/creation_list.php?owner=blackXblue', {
+      const articleResponse = await fetch('https://api.gamer.com.tw/mobile_app/bahamut/v1/home.php?owner=blackXblue&page=1', {
         headers: {
           ...this.headers,
           'Cookie': this.getCookieString(),
@@ -270,38 +318,25 @@ export class BahamutService {
         }
       });
 
-      // 檢查文章 API response
-      const articleContentType = articleResponse.headers.get('content-type');
-      if (!articleContentType || !articleContentType.includes('application/json')) {
-        return '❌ 無法取得答案文章，API 返回非 JSON 格式';
-      }
-
       const articleData = await articleResponse.json();
-      const today = new Date();
-      // UserScript 使用 M/D 格式（不補零）
-      const month = today.getMonth() + 1;
-      const day = today.getDate();
 
-      // 嘗試多種日期格式
-      const dateFormats = [
-        `${month}/${day}`,  // 3/9
-        `${month}-${day}`,  // 3-9
-        `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`,  // 03/09
-        `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`   // 03-09
-      ];
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const dateStr = `${month}/${day}`;
 
-      const answerArticle = (articleData.data?.list || []).find((article: any) =>
-        dateFormats.some(format => article.title.includes(format))
+      const article = (articleData.creation || []).find((a: { title?: string; sn?: string }) =>
+        a.title?.includes(dateStr)
       );
 
-      if (!answerArticle) {
+      if (!article?.sn) {
         return '❌ 找不到今日答案文章';
       }
 
+      // Get answer from article content (JSON, same as reference script)
       await this.smartDelay(500);
 
-      // 取得答案內容（使用 webview API 取得 HTML）
-      const answerResponse = await fetch(`https://api.gamer.com.tw/mobile_app/bahamut/v1/home_creation_detail_webview.php?sn=${answerArticle.csn}`, {
+      const answerResponse = await fetch(`https://api.gamer.com.tw/mobile_app/bahamut/v1/home_creation_detail.php?sn=${article.sn}`, {
         headers: {
           ...this.headers,
           'Cookie': this.getCookieString(),
@@ -309,26 +344,16 @@ export class BahamutService {
         }
       });
 
-      // 檢查答案 API response（HTML 格式）
-      const answerContentType = answerResponse.headers.get('content-type');
-      if (!answerContentType || !answerContentType.includes('text/html')) {
-        return '❌ 無法取得答案內容，API 返回非預期格式';
-      }
+      const answerData = await answerResponse.json();
+      const answer = (answerData.content || '').split(/A[:;：](\d)/)[1];
 
-      const answerHTML = await answerResponse.text();
-
-      // 解析 HTML 找答案（匹配 UserScript 的邏輯）
-      const answerMatch = answerHTML.match(/[aAＡ]\s*.\s*([1-4１-４])/);
-
-      if (!answerMatch) {
+      if (!answer) {
         return '❌ 無法解析答案';
       }
 
-      const answer = answerMatch[1];
-
+      // Submit answer
       await this.smartDelay(600);
 
-      // 提交答案（使用正確的 API）
       const submitResponse = await fetch('https://ani.gamer.com.tw/ajax/animeAnsQuestion.php', {
         method: 'POST',
         headers: {
@@ -340,12 +365,6 @@ export class BahamutService {
         },
         body: `token=${questionData.token}&ans=${answer}&t=${Date.now()}`
       });
-
-      // 檢查提交答案 response
-      const submitContentType = submitResponse.headers.get('content-type');
-      if (!submitContentType || !submitContentType.includes('application/json')) {
-        return '❌ 提交答案失敗，API 返回非 JSON 格式';
-      }
 
       const result = await submitResponse.json();
 

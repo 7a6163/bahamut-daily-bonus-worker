@@ -6,11 +6,15 @@ An automated daily check-in service for Bahamut built with Cloudflare Worker + H
 
 - 🔐 Automatic daily check-in for Bahamut main site
 - 🏛️ Automatic guild check-in
-- 🎬 Automatic Ani Gamer quiz answering
+- 📺 Ad double reward (廣告雙倍獎勵)
 - 📱 Two-factor authentication (2FA) support
 - 🤖 Telegram Bot notifications
-- ⏰ Scheduled execution (Daily at UTC 00:00 / Taiwan Time 08:00)
-- 🔄 Automatic retry on failures
+- ⏰ Scheduled execution (Daily at UTC 00:00 / Taiwan Time 08:00) with retry at 10:00 and 12:00
+- 🔄 KV-based deduplication to skip retries if already signed in
+
+> **Note:** Ani Gamer quiz (`needAnswer`) is disabled. `ani.gamer.com.tw` is protected by Cloudflare
+> and returns 403 for requests originating from Cloudflare Worker IP ranges. Use a local script
+> (Surge, Node.js, NAS) for quiz answering instead.
 
 ## Installation
 
@@ -94,10 +98,10 @@ This Worker uses several strategies to minimize CPU time while maintaining natur
 ## Notes
 
 - Ensure your account credentials are correct
-- If 2FA is enabled, provide the 16-digit token
-- Ani Gamer quiz fetches answers from blackXblue's daily posts, with fallback to community answer collection
+- If 2FA is enabled, provide the 16-digit TOTP secret
 - Recommended to set up Telegram notifications for real-time status updates
-- Smart delays add 3-8 seconds total execution time but use minimal CPU time
+- Ad reward adds ~30 seconds wall-clock time (idle wait, not CPU time)
+- KV namespace must be created before deploying: `npx wrangler kv namespace create "DAILY_STATUS"`
 
 ## License
 

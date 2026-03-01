@@ -4,6 +4,7 @@ export interface Env {
   BAHAMUT_TOTP?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  DAILY_STATUS: KVNamespace;
 }
 
 export interface BahamutConfig {

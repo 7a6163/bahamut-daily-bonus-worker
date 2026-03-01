@@ -3,36 +3,52 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "bahamut-daily-bonus",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-08-13",
-	"compatibility_flags": ["nodejs_compat"],
-	"preview_urls": false,
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bahamut-daily-bonus",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": false,
 
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	"vars": {
-		// Environment variables configuration
-	},
+  /**
+   * Environment Variables
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+   */
+  "vars": {
+    // Environment variables configuration
+  },
 
-	/**
-	 * Scheduled Events (Cron Triggers)
-	 * https://developers.cloudflare.com/workers/configuration/cron-triggers/
-	 */
-	"triggers": {
-		"crons": ["0 0 * * *"] // Scheduled task - runs daily at 8:00 AM (UTC+8)
-	}
+  /**
+   * KV Namespace Bindings
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+   * Create with: npx wrangler kv namespace create "DAILY_STATUS"
+   */
+  "kv_namespaces": [
+    {
+      "binding": "DAILY_STATUS",
+      "id": "REPLACE_WITH_REAL_ID",
+    },
+  ],
 
-	/**
-	 * Secrets Configuration
-	 * Use wrangler secret commands to set these values:
-	 * wrangler secret put BAHAMUT_UID
-	 * wrangler secret put BAHAMUT_PWD
-	 * wrangler secret put BAHAMUT_TOTP (optional)
-	 * wrangler secret put TELEGRAM_BOT_TOKEN (optional, Telegram Bot Token)
-	 * wrangler secret put TELEGRAM_CHAT_ID (optional, Telegram Chat ID)
-	 */
+  /**
+   * Scheduled Events (Cron Triggers)
+   * https://developers.cloudflare.com/workers/configuration/cron-triggers/
+   */
+  "triggers": {
+    "crons": [
+      "0 0 * * *", // 08:00 Taiwan (primary)
+      "0 2 * * *", // 10:00 Taiwan (retry 1)
+      "0 4 * * *", // 12:00 Taiwan (retry 2)
+    ],
+  },
+
+  /**
+   * Secrets Configuration
+   * Use wrangler secret commands to set these values:
+   * wrangler secret put BAHAMUT_UID
+   * wrangler secret put BAHAMUT_PWD
+   * wrangler secret put BAHAMUT_TOTP (optional)
+   * wrangler secret put TELEGRAM_BOT_TOKEN (optional, Telegram Bot Token)
+   * wrangler secret put TELEGRAM_CHAT_ID (optional, Telegram Chat ID)
+   */
 }
