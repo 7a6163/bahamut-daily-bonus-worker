@@ -1,10 +1,11 @@
 import { TOTP } from 'otpauth';
-import type { BahamutConfig, LoginResponse, SignResponse } from '../types';
+import type { BahamutConfig, LoginResponse, MobileSignResponse } from '../types';
 
 export class BahamutService {
   private config: BahamutConfig;
   private cookies: Map<string, string> = new Map();
   private csrfToken: string = '';
+  private mainSignedIn: boolean = false;
   private headers: HeadersInit;
 
   constructor(config: BahamutConfig) {
@@ -80,6 +81,7 @@ export class BahamutService {
       if (setCookieHeaders) {
         this.parseCookies(setCookieHeaders);
       }
+      this.cookies.set('ckAPP_VCODE', '6666');
 
       const data: LoginResponse = await response.json();
 
@@ -103,75 +105,80 @@ export class BahamutService {
   async signMain(): Promise<string> {
     await this.smartDelay(800);
 
-    const tokenResponse = await fetch('https://www.gamer.com.tw/ajax/get_csrf_token.php', {
-      method: 'GET',
-      headers: {
-        ...this.headers,
-        'Cookie': this.getCookieString(),
-        'Referer': 'https://www.gamer.com.tw/'
-      }
-    });
-
-    if (!tokenResponse.ok) {
-      return '❌ 無法取得簽到令牌';
-    }
-
-    const token = await tokenResponse.text();
-    if (!token) {
-      return '❌ 簽到令牌為空';
-    }
-
-    this.csrfToken = token;
-
-    await this.smartDelay(500);
-
-    const signResponse = await fetch('https://www.gamer.com.tw/ajax/signin.php', {
+    // Web endpoint www.gamer.com.tw/ajax/get_csrf_token.php is now behind a
+    // Cloudflare JS challenge that blocks non-browser clients. Use the mobile
+    // API sign-in endpoint instead, which only needs the login cookie.
+    const response = await fetch('https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in.php', {
       method: 'POST',
       headers: {
         ...this.headers,
-        'Cookie': this.getCookieString(),
-        'Referer': 'https://www.gamer.com.tw/'
+        'Cookie': this.getCookieString()
       },
-      body: `action=1&token=${token}`
+      body: 'vcode=6666'
     });
 
-    const data: SignResponse = await signResponse.json();
+    const text = await response.text();
+    console.log(`[signMain] status=${response.status} body=${text.slice(0, 300)}`);
+    let data: MobileSignResponse;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const preview = text.slice(0, 120).replace(/\n/g, ' ');
+      return `❌ 巴哈姆特簽到失敗: 非 JSON 回應 (${response.status}) ${preview}`;
+    }
 
-    if (data.data?.days) {
+    const token = data.token || data.bahamutCsrfToken || data.data?.token || data.data?.bahamutCsrfToken;
+    if (token) this.csrfToken = token;
+
+    if (data.data?.days != null) {
+      this.mainSignedIn = true;
       return `✅ 巴哈姆特簽到成功，已連續簽到 ${data.data.days} 天`;
     }
-    if (data.error?.message) {
-      if (data.error.message.includes('已經簽到') || data.error.message.includes('已簽到')) {
+
+    const msg = data.message || data.error?.message;
+    if (typeof msg === 'string') {
+      if (msg.includes('簽到成功')) {
+        this.mainSignedIn = true;
+        return `✅ 巴哈姆特簽到成功`;
+      }
+      if (msg.includes('已經簽到') || msg.includes('已簽到')) {
+        this.mainSignedIn = true;
         return '⚠️ 巴哈姆特今日已簽到';
       }
-      return `❌ 巴哈姆特簽到失敗: ${data.error.message}`;
+      return `❌ 巴哈姆特簽到失敗: ${msg}`;
     }
     return '❌ 巴哈姆特簽到失敗: 未知錯誤';
   }
 
   async signAds(): Promise<string> {
     try {
-      if (!this.csrfToken) {
+      if (!this.mainSignedIn) {
         return '❌ 廣告獎勵需要先完成主站簽到';
       }
 
-      const shortToken = this.csrfToken.slice(0, 16);
-      const adsCookie = `ckBahamutCsrfToken=${shortToken};${this.getCookieString()}`;
+      const token = this.csrfToken || this.cookies.get('ckBahamutCsrfToken') || '';
+      console.log(`[signAds] csrfToken=${this.csrfToken ? this.csrfToken.slice(0, 24) : '(none)'} ckBahamutCsrfToken=${this.cookies.get('ckBahamutCsrfToken') ? 'yes' : 'no'} using=${token ? 'token' : 'cookie-only'}`);
+      const adsCookie = token
+        ? `ckBahamutCsrfToken=${token};${this.getCookieString()}`
+        : this.getCookieString();
 
       await this.smartDelay(500);
 
-      const startResponse = await fetch(
-        `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php?bahamutCsrfToken=${shortToken}`,
-        {
-          method: 'POST',
-          headers: {
-            ...this.headers,
-            'Cookie': adsCookie
-          }
-        }
-      );
+      const startUrl = token
+        ? `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php?bahamutCsrfToken=${token}`
+        : 'https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php';
 
-      const startData = await startResponse.json();
+      const startResponse = await fetch(startUrl, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Cookie': adsCookie
+        }
+      });
+
+      const startText = await startResponse.text();
+      console.log(`[signAds] start status=${startResponse.status} body=${startText.slice(0, 300)}`);
+      const startData = JSON.parse(startText);
 
       if (startData.data?.finished === 1) {
         return '⚠️ 廣告雙倍獎勵今日已領取';
@@ -185,16 +192,17 @@ export class BahamutService {
       // Wait 30 seconds for ad to play
       await new Promise(resolve => setTimeout(resolve, 30000));
 
-      const finishResponse = await fetch(
-        `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php?bahamutCsrfToken=${shortToken}`,
-        {
-          method: 'POST',
-          headers: {
-            ...this.headers,
-            'Cookie': adsCookie
-          }
+      const finishUrl = token
+        ? `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php?bahamutCsrfToken=${token}`
+        : 'https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php';
+
+      const finishResponse = await fetch(finishUrl, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Cookie': adsCookie
         }
-      );
+      });
 
       const finishData = await finishResponse.json();
 
@@ -211,53 +219,13 @@ export class BahamutService {
   }
 
   async signGuild(): Promise<string> {
-    try {
-      await this.smartDelay(600);
-
-      const listResponse = await fetch('https://api.gamer.com.tw/ajax/common/topBar.php?type=forum', {
-        headers: {
-          ...this.headers,
-          'Cookie': this.getCookieString()
-        }
-      });
-
-      const listHtml = await listResponse.text();
-
-      const guildMatch = listHtml.match(/guild\.php\?g?sn=(\d+)/);
-
-      if (!guildMatch) {
-        return '⚠️ 未加入任何公會';
-      }
-
-      const guildId = guildMatch[1];
-
-      await this.smartDelay(400);
-
-      const signResponse = await fetch('https://guild.gamer.com.tw/ajax/guildSign.php', {
-        method: 'POST',
-        headers: {
-          ...this.headers,
-          'Cookie': this.getCookieString(),
-          'Referer': `https://guild.gamer.com.tw/${guildId}`
-        },
-        body: `sn=${guildId}`
-      });
-
-      const result = await signResponse.json();
-
-      if (result.ok === 1) {
-        return `✅ 公會簽到成功`;
-      }
-      if (result.msg?.includes('已經簽到過了') || result.msg?.includes('已簽到')) {
-        return '⚠️ 公會今日已簽到';
-      }
-      if (result.error === 1 && result.msg) {
-        return `❌ 公會簽到失敗: ${result.msg}`;
-      }
-      return `❌ 公會簽到失敗: 未知錯誤`;
-    } catch (error) {
-      return `❌ 公會簽到失敗: ${error instanceof Error ? error.message : '未知錯誤'}`;
-    }
+    // guild.gamer.com.tw/ajax/guildSign.php is now behind a Cloudflare JS
+    // challenge that returns HTML to non-browser clients, causing JSON parse
+    // errors. The mobile guild sign endpoint params could not be determined
+    // without a live session, so guild sign-in is disabled. Use a local
+    // script (Surge/Node/NAS) for guild sign-in until the mobile API flow is
+    // reverse-engineered.
+    return '⚠️ 公會簽到已停用：guild.gamer.com.tw 已被 Cloudflare JS 挑戰保護，Worker 無法通過，請改用本地腳本';
   }
 
   async answerAnime(): Promise<string> {

@@ -30,16 +30,22 @@ export interface LoginResponse {
   message?: string;
 }
 
-export interface SignResponse {
+export interface MobileSignResponse {
+  code?: number;
+  message?: string;
   data?: {
     days?: number;
-    message?: string;
-    prjSigninDays?: number;
+    token?: string;
+    bahamutCsrfToken?: string;
+    [key: string]: unknown;
   };
   error?: {
     code?: number;
     message?: string;
+    status?: string;
   };
+  token?: string;
+  bahamutCsrfToken?: string;
 }
 
 export interface AnimeQuestion {
