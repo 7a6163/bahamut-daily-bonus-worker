@@ -119,6 +119,15 @@ export class BahamutService {
 
     const text = await response.text();
     console.log(`[signMain] status=${response.status} body=${text.slice(0, 300)}`);
+
+    // The sign-in response may issue ckBahamutCsrfToken (needed by signAds)
+    // via Set-Cookie. Capture it into the jar.
+    const signInCookies = response.headers.getSetCookie();
+    if (signInCookies && signInCookies.length > 0) {
+      this.parseCookies(signInCookies);
+      console.log(`[signMain] set-cookie cookies=${signInCookies.map(c => c.split('=')[0]).join(',')}`);
+    }
+
     let data: MobileSignResponse;
     try {
       data = JSON.parse(text);
