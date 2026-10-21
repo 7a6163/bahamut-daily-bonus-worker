@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Optional `TELEGRAM_THREAD_ID` secret to post notifications into a forum topic of a Telegram group.
+
 ### Fixed
 - **Ad double reward** failed with `網頁已過期` since the switch to the mobile sign-in API, which issues no CSRF token. `signAds()` now falls back to a random 16-hex `bahamutCsrfToken`, sent as both cookie and query param (the endpoints only check that the two match).
 

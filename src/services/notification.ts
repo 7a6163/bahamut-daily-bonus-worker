@@ -1,14 +1,15 @@
 interface TelegramConfig {
   botToken: string;
   chatId: string;
+  threadId?: string;
 }
 
 export class NotificationService {
   private telegramConfig?: TelegramConfig;
 
-  constructor(botToken?: string, chatId?: string) {
+  constructor(botToken?: string, chatId?: string, threadId?: string) {
     if (botToken && chatId) {
-      this.telegramConfig = { botToken, chatId };
+      this.telegramConfig = { botToken, chatId, threadId };
     }
   }
 
@@ -27,7 +28,7 @@ export class NotificationService {
   private async sendTelegram(title: string, message: string): Promise<void> {
     if (!this.telegramConfig) return;
 
-    const { botToken, chatId } = this.telegramConfig;
+    const { botToken, chatId, threadId } = this.telegramConfig;
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
     const text = `🎮 *${this.escapeMarkdown(title)}*\n\n${this.escapeMarkdown(message)}`;
@@ -39,6 +40,8 @@ export class NotificationService {
       },
       body: JSON.stringify({
         chat_id: chatId,
+        // Posts into a forum topic when the chat is a group with Topics enabled.
+        message_thread_id: threadId ? Number(threadId) : undefined,
         text,
         parse_mode: 'MarkdownV2',
         disable_web_page_preview: true

@@ -77,7 +77,7 @@ app.post('/trigger', async (c) => {
     return c.json({ error: '缺少必要的帳號密碼設定' }, 400);
   }
 
-  const notification = new NotificationService(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID);
+  const notification = new NotificationService(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, env.TELEGRAM_THREAD_ID);
   const result = await runSignIn(env);
 
   await notification.send(
@@ -115,7 +115,7 @@ export default {
       return;
     }
 
-    const notification = new NotificationService(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID);
+    const notification = new NotificationService(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, env.TELEGRAM_THREAD_ID);
     const result = await runSignIn(env);
 
     await notification.send(

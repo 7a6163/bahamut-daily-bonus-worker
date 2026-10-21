@@ -41,6 +41,9 @@ wrangler secret put TELEGRAM_BOT_TOKEN
 
 # Optional: Telegram Chat ID
 wrangler secret put TELEGRAM_CHAT_ID
+
+# Optional: Telegram topic ID (message_thread_id) for a group with Topics
+wrangler secret put TELEGRAM_THREAD_ID
 ```
 
 ### 3. Deploy
