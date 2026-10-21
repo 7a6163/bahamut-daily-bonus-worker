@@ -5,16 +5,15 @@ An automated daily check-in service for Bahamut built with Cloudflare Worker + H
 ## Features
 
 - 🔐 Automatic daily check-in for Bahamut main site
-- 🏛️ Automatic guild check-in
 - 📺 Ad double reward (廣告雙倍獎勵)
 - 📱 Two-factor authentication (2FA) support
 - 🤖 Telegram Bot notifications
 - ⏰ Scheduled execution (Daily at UTC 00:00 / Taiwan Time 08:00) with retry at 10:00 and 12:00
 - 🔄 KV-based deduplication to skip retries if already signed in
 
-> **Note:** Ani Gamer quiz (`needAnswer`) is disabled. `ani.gamer.com.tw` is protected by Cloudflare
-> and returns 403 for requests originating from Cloudflare Worker IP ranges. Use a local script
-> (Surge, Node.js, NAS) for quiz answering instead.
+> **Note:** Guild sign-in runs from GitHub Actions in [bahamut-daily-bonus-action](https://github.com/7a6163/bahamut-daily-bonus-action),
+> because `guild.gamer.com.tw` blocks Cloudflare Worker IPs. The Ani Gamer quiz is not supported:
+> `ani.gamer.com.tw` returns 403 to all datacenter IPs (Workers and GitHub runners alike).
 
 ## Installation
 
@@ -85,15 +84,13 @@ curl -X POST http://localhost:8787/trigger
 ### Authentication
 - Uses Mobile API for login with automatic web session establishment
 - Supports both mobile and web authentication tokens
-- Automatically handles cross-domain cookie sharing for Ani Gamer
 
 ### Performance Optimization
 This Worker uses several strategies to minimize CPU time while maintaining natural behavior:
 
 1. **Smart Delays**: Implements short, randomized delays (500-2000ms) to simulate human behavior without excessive CPU usage
-2. **Simplified Architecture**: No KV storage needed - relies on Bahamut API responses
-3. **Automatic Deduplication**: Bahamut API handles duplicate sign-in attempts gracefully
-4. **Session Management**: Automatically establishes web sessions when needed for cross-service compatibility
+2. **KV Deduplication**: Retry crons skip once today's main sign-in is recorded in `DAILY_STATUS`
+3. **Session Management**: Automatically establishes web sessions when needed for cross-service compatibility
 
 ## Notes
 

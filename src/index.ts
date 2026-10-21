@@ -22,8 +22,6 @@ async function runSignIn(env: Env): Promise<SignInResult> {
     pwd: env.BAHAMUT_PWD,
     totp: env.BAHAMUT_TOTP || '',
     needSignAds: true,
-    needSignGuild: true,
-    needAnswer: false,
     useSmartDelay: true
   };
 
@@ -35,11 +33,6 @@ async function runSignIn(env: Env): Promise<SignInResult> {
     await bahamut.login();
     results.push('✅ 登入成功');
 
-    if (config.needSignGuild) {
-      const guildResult = await bahamut.signGuild();
-      results.push(guildResult);
-    }
-
     const mainResult = await bahamut.signMain();
     results.push(mainResult);
 
@@ -48,11 +41,6 @@ async function runSignIn(env: Env): Promise<SignInResult> {
     if (config.needSignAds) {
       const adsResult = await bahamut.signAds();
       results.push(adsResult);
-    }
-
-    if (config.needAnswer) {
-      const answerResult = await bahamut.answerAnime();
-      results.push(answerResult);
     }
 
     return { success: true, results, mainSignedIn };

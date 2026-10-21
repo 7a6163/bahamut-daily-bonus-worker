@@ -12,8 +12,6 @@ export interface BahamutConfig {
   pwd: string;
   totp?: string;
   needSignAds?: boolean;
-  needSignGuild?: boolean;
-  needAnswer?: boolean;
   useSmartDelay?: boolean;
 }
 
@@ -46,10 +44,4 @@ export interface MobileSignResponse {
   };
   token?: string;
   bahamutCsrfToken?: string;
-}
-
-export interface AnimeQuestion {
-  question: string;
-  answers: string[];
-  token: string;
 }

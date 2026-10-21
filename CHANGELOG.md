@@ -5,6 +5,10 @@
 ### Fixed
 - **Ad double reward** failed with `網頁已過期` since the switch to the mobile sign-in API, which issues no CSRF token. `signAds()` now falls back to a random 16-hex `bahamutCsrfToken`, sent as both cookie and query param (the endpoints only check that the two match).
 
+### Removed
+- **Ani Gamer quiz** (`answerAnime`, `needAnswer`): `ani.gamer.com.tw` returns 403 to every datacenter IP tried (Cloudflare Workers, GitHub Actions runners, even a headed browser), so it can't run from this Worker.
+- **Guild sign-in stub** (`signGuild`, `needSignGuild`): guild sign-in now runs from GitHub Actions in [bahamut-daily-bonus-action](https://github.com/7a6163/bahamut-daily-bonus-action).
+
 ## [1.1.0] - 2026-03-01
 
 ### Added
