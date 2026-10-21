@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Ad double reward** failed with `網頁已過期` since the switch to the mobile sign-in API, which issues no CSRF token. `signAds()` now falls back to a random 16-hex `bahamutCsrfToken`, sent as both cookie and query param (the endpoints only check that the two match).
+
 ## [1.1.0] - 2026-03-01
 
 ### Added

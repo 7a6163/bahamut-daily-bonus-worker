@@ -165,19 +165,16 @@ export class BahamutService {
         return '❌ 廣告獎勵需要先完成主站簽到';
       }
 
-      const token = this.csrfToken || this.cookies.get('ckBahamutCsrfToken') || '';
-      console.log(`[signAds] csrfToken=${this.csrfToken ? this.csrfToken.slice(0, 24) : '(none)'} ckBahamutCsrfToken=${this.cookies.get('ckBahamutCsrfToken') ? 'yes' : 'no'} using=${token ? 'token' : 'cookie-only'}`);
-      const adsCookie = token
-        ? `ckBahamutCsrfToken=${token};${this.getCookieString()}`
-        : this.getCookieString();
+      // The ad endpoints only check that the bahamutCsrfToken param matches the
+      // ckBahamutCsrfToken cookie (double-submit), so a random token works when
+      // the mobile sign-in didn't issue one.
+      const token = this.csrfToken || this.cookies.get('ckBahamutCsrfToken')
+        || Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+      const adsCookie = `ckBahamutCsrfToken=${token};${this.getCookieString()}`;
 
       await this.smartDelay(500);
 
-      const startUrl = token
-        ? `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php?bahamutCsrfToken=${token}`
-        : 'https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php';
-
-      const startResponse = await fetch(startUrl, {
+      const startResponse = await fetch(`https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_start.php?bahamutCsrfToken=${token}`, {
         method: 'POST',
         headers: {
           ...this.headers,
@@ -201,11 +198,7 @@ export class BahamutService {
       // Wait 30 seconds for ad to play
       await new Promise(resolve => setTimeout(resolve, 30000));
 
-      const finishUrl = token
-        ? `https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php?bahamutCsrfToken=${token}`
-        : 'https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php';
-
-      const finishResponse = await fetch(finishUrl, {
+      const finishResponse = await fetch(`https://api.gamer.com.tw/mobile_app/bahamut/v1/sign_in_ad_finished.php?bahamutCsrfToken=${token}`, {
         method: 'POST',
         headers: {
           ...this.headers,
